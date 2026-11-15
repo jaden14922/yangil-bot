@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>양일고 안내 챗봇</title>
+<meta name="description" content="양일고등학교 급식, 시간표, 학교생활 정보를 물어보는 안내 챗봇">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: 한 화면 채팅 앱 — 각진 모양으로 통일, 초록 1색 + 노랑 포인트 선 하나, 넉넉한 여백 */
+:root{
+  --bg:#F5F6F4; --surface:#FFFFFF; --fg:#1A1F1C; --muted:#6B746F; --line:#E2E6E3;
+  --accent:#0B6635; --accent-soft:#EEF4F0; --on-accent:#FFFFFF; --point:#F2D21B; --mark:.07;
+  --font:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#111513; --surface:#191E1B; --fg:#E8ECE9; --muted:#97A19B; --line:#2A312D;
+  --accent:#5FBF86; --accent-soft:#1C2620; --on-accent:#0D1410; --point:#E6C61A; --mark:.06; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.65;letter-spacing:-.01em}
+.app{height:100%;max-width:680px;margin:0 auto;display:flex;flex-direction:column;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:max(14px,env(safe-area-inset-top,0px));padding-bottom:max(14px,env(safe-area-inset-bottom,0px))}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:14px;border-bottom:2px solid var(--point)}
+.crest{width:30px;height:auto;flex:none}
+.title{min-width:0}
+header h1{font-size:17px;font-weight:700;margin:0;line-height:1.3;letter-spacing:-.02em}
+header p{margin:0;font-size:12.5px;color:var(--muted)}
+.cls{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:0;padding:5px 8px}
+.stage{flex:1;position:relative;min-height:0;display:flex;flex-direction:column}
+.stage::before{content:"";position:absolute;inset:0;background:url("logo.png") center/min(50%,220px) no-repeat;opacity:var(--mark);pointer-events:none}
+#log{flex:1;position:relative;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding-block:20px;min-height:0}
+.msg{max-width:82%;padding:12px 16px;border-radius:0;white-space:pre-line;min-width:0;overflow-wrap:anywhere}
+.bot{background:var(--surface);border:1px solid var(--line);align-self:flex-start}
+.me{background:var(--accent);color:var(--on-accent);align-self:flex-end;border-radius:6px}
+.bot h3{font-size:13px;font-weight:700;color:var(--accent);margin:0 0 8px;letter-spacing:0}
+.bot ul{list-style:none;margin:0;padding:0;white-space:normal}
+.bot li{padding:3px 0}
+.bot li+li{border-top:1px solid var(--line)}
+.meal{min-width:200px}
+.meal+.meal{margin-top:16px}
+.kcal{font-size:11.5px;color:var(--muted);text-align:right;margin-top:8px;font-variant-numeric:tabular-nums}
+table{border-collapse:collapse;font-variant-numeric:tabular-nums;width:100%}
+td{padding:4px 16px 4px 0}
+tr+tr td{border-top:1px solid var(--line)}
+td:first-child{color:var(--muted);white-space:nowrap;font-size:13px}
+.note{font-size:11.5px;color:var(--muted);margin-top:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding-block:10px}
+@media (max-width:600px){.chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}.chips::-webkit-scrollbar{display:none}.chip{flex:none}.msg{max-width:88%}}
+.chip{font:inherit;font-size:13px;background:var(--surface);color:var(--fg);border:1px solid var(--line);
+  border-radius:0;padding:6px 12px;cursor:pointer}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+form{display:flex;gap:6px}
+input{flex:1;min-width:0;font:inherit;font-size:16px;padding:11px 14px;border-radius:0;border:1px solid var(--line);
+  background:var(--surface);color:var(--fg)}
+input:focus{border-color:var(--accent);outline:none}
+button.send{font:inherit;font-weight:700;padding:11px 18px;border-radius:0;border:0;background:var(--accent);
+  color:var(--on-accent);cursor:pointer}
+footer{font-size:11px;color:var(--muted);padding-top:10px;text-align:center}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){.msg{animation:in .2s ease-out}@keyframes in{from{transform:translateY(4px)}}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <img class="crest" src="logo.png" alt="양일고 교표">
+    <div class="title"><h1>양일고 안내 챗봇</h1><p>급식 · 시간표 · 학교생활 궁금한 것</p></div>
+    <label class="cls" for="cls">내 반 <select id="cls"><option value="">선택</option></select></label>
+  </header>
+  <div class="stage"><div id="log" aria-live="polite"></div></div>
+  <div class="chips" id="chips"></div>
+  <form id="f">
+    <input id="q" placeholder="예: 내일 점심 뭐야?" autocomplete="off" aria-label="질문 입력">
+    <button class="send" type="submit">보내기</button>
+  </form>
+  <footer id="foot">급식·시간표 출처: 나이스 교육정보 개방 포털 · 학생 개인 프로젝트예요</footer>
+</div>
+
+<script>
+let DATA = {meals:{}, timetable:{}, classes:[], updated:""};
+let FAQ = [];
+const DAYS = ["일","월","화","수","목","금","토"];
+const log = document.getElementById("log");
+const sel = document.getElementById("cls");
+
+// ── 날짜 도우미 (항상 한국 시간 기준) ──
+function kstToday(){const n=new Date(Date.now()+9*3600e3);return new Date(Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate()))}
+const addDays=(d,n)=>new Date(d.getTime()+n*864e5);
+const ymd=d=>d.toISOString().slice(0,10).replace(/-/g,"");
+const label=d=>`${d.getUTCMonth()+1}월 ${d.getUTCDate()}일 (${DAYS[d.getUTCDay()]})`;
+
+function parseDay(q){
+  const t=kstToday();
+  if(/모레/.test(q)) return addDays(t,2);
+  if(/내일/.test(q)) return addDays(t,1);
+  if(/어제/.test(q)) return addDays(t,-1);
+  let m=q.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  if(m){let y=t.getUTCFullYear(),d=new Date(Date.UTC(y,m[1]-1,+m[2]));if(d<addDays(t,-180))d=new Date(Date.UTC(y+1,m[1]-1,+m[2]));return d}
+  m=q.match(/(\d{1,2})\s*일/);
+  if(m){let d=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth(),+m[1]));if(d<addDays(t,-15))d=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth()+1,+m[1]));return d}
+  m=q.match(/([월화수목금토일])요일/);
+  if(m){let diff=(DAYS.indexOf(m[1])-t.getUTCDay()+7)%7;if(/다음\s*주/.test(q))diff+=7;return addDays(t,diff)}
+  return t;
+}
+function parseClass(q){
+  let m=q.match(/(\d)\s*학년\s*(\d{1,2})\s*반/)||q.match(/\b(\d)\s*-\s*(\d{1,2})\b/);
+  return m?`${+m[1]}-${+m[2]}`:null;
+}
+const clsLabel=c=>{const [g,n]=c.split("-");return `${g}학년 ${n}반`};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// ── 답변 만들기: 나중에 AI를 붙일 때는 이 함수만 바꾸면 돼요 ──
+function mealAnswer(q){
+  const d=parseDay(q), list=DATA.meals[ymd(d)];
+  if(!list||!list.length){
+    const wk=d.getUTCDay();
+    if(wk===0||wk===6) return `${label(d)}은 주말이라 급식이 없어요.`;
+    return `${label(d)}에는 급식 정보가 없어요. 방학·행사일이거나 아직 등록되지 않았을 수 있어요.`;
+  }
+  let meals=list;
+  if(/석식|저녁/.test(q)) meals=list.filter(m=>m.type.includes("석식"));
+  else if(/조식|아침/.test(q)) meals=list.filter(m=>m.type.includes("조식"));
+  if(!meals.length) return `${label(d)}에는 해당 식사 정보가 없어요.`;
+  return meals.map(m=>`<div class="meal"><h3>${label(d)} ${esc(m.type)}</h3><ul>${m.dishes.map(x=>`<li>${esc(x)}</li>`).join("")}</ul><div class="kcal">${esc(m.kcal)}</div></div>`).join("");
+}
+function ttAnswer(q){
+  const asked=parseClass(q);
+  if(asked){sel.value=DATA.classes.includes(asked)?asked:sel.value;save(asked)}
+  const cls=asked||sel.value;
+  if(!cls) return "몇 학년 몇 반인지 알려주세요. 위쪽 '내 반'에서 고르거나 \"1학년 3반 시간표\"처럼 물어보면 돼요.";
+  const d=parseDay(q), rows=(DATA.timetable[ymd(d)]||{})[cls];
+  if(!rows){
+    const wk=d.getUTCDay();
+    if(wk===0||wk===6) return `${label(d)}은 주말이라 수업이 없어요.`;
+    return `${label(d)} ${clsLabel(cls)} 시간표 정보가 없어요. 이번 주와 다음 주 시간표만 볼 수 있어요.`;
+  }
+  return `<h3>${label(d)} ${clsLabel(cls)} 시간표</h3><table>${rows.map(([p,s])=>`<tr><td>${p}교시</td><td>${esc(s)}</td></tr>`).join("")}</table><div class="note">수업 교체·보강은 반영이 늦을 수 있어요.</div>`;
+}
+function answer(q){
+  const f=FAQ.find(x=>x.keys.some(k=>q.includes(k)));
+  if(f) return esc(f.answer);
+  if(/시간표|교시|수업|과목/.test(q)) return ttAnswer(q);
+  if(/급식|점심|밥|메뉴|중식|석식|조식|저녁|식단/.test(q)) return mealAnswer(q);
+  return "아직 그 질문에 대한 정보가 없어요. 교무실이나 담임 선생님께 확인해 주세요.";
+}
+
+// ── 화면 ──
+function add(html,who){const d=document.createElement("div");d.className="msg "+who;d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight}
+function ask(q){add(esc(q),"me");setTimeout(()=>add(answer(q),"bot"),200)}
+function save(c){try{localStorage.setItem("cls",c)}catch(e){}}
+function load(){try{return localStorage.getItem("cls")||""}catch(e){return ""}}
+
+["오늘 급식 뭐야?","내일 점심 뭐야?","오늘 시간표","내일 시간표","지각 기준이 몇 시야?","몇 시에 끝나?"].forEach(t=>{
+  const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=t;b.onclick=()=>ask(t);
+  document.getElementById("chips").appendChild(b)});
+document.getElementById("f").addEventListener("submit",e=>{e.preventDefault();const i=document.getElementById("q");const v=i.value.trim();if(v){ask(v);i.value=""}});
+sel.addEventListener("change",()=>save(sel.value));
+
+Promise.all([
+  fetch("data.json",{cache:"no-store"}).then(r=>r.json()),
+  fetch("faq.json",{cache:"no-store"}).then(r=>r.json()).catch(()=>[])
+]).then(([data,faq])=>{
+  DATA=data;FAQ=faq;
+  DATA.classes.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=clsLabel(c);sel.appendChild(o)});
+  const saved=load(); if(DATA.classes.includes(saved)) sel.value=saved;
+  if(DATA.updated) document.getElementById("foot").textContent=`급식·시간표 출처: 나이스 교육정보 개방 포털 · ${DATA.updated} 업데이트 · 학생 개인 프로젝트예요`;
+  add("안녕하세요! 양일고 안내 챗봇이에요.\n급식, 시간표, 학교생활에 대해 물어보세요.","bot");
+  const t=kstToday(); let d=t;
+  for(let i=0;i<7&&!DATA.meals[ymd(d)];i++) d=addDays(d,1);
+  const q=ymd(d)===ymd(t)?"오늘 급식 뭐야?":`${d.getUTCMonth()+1}월 ${d.getUTCDate()}일 급식`;
+  add(esc(q),"me"); add(mealAnswer(q),"bot");
+}).catch(()=>add("급식·시간표 정보를 불러오지 못했어요. 잠시 후 새로고침해 주세요.","bot"));
+</script>
+</body>
+</html>
