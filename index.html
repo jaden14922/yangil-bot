@@ -151,13 +151,27 @@ function answer(q){
 // ── 화면 ──
 function add(html,who){const d=document.createElement("div");d.className="msg "+who;d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight}
 function ask(q){add(esc(q),"me");setTimeout(()=>add(answer(q),"bot"),200)}
+// ── AI 답변: AI_URL이 비어 있으면 위의 단어 인식 방식만 써요 ──
+const AI_URL = "";
+async function askAI(q){
+  add(esc(q),"me");
+  if(!AI_URL){setTimeout(()=>add(answer(q),"bot"),200);return}
+  const wait=document.createElement("div");wait.className="msg bot";wait.textContent="답변을 준비하고 있어요…";log.appendChild(wait);log.scrollTop=log.scrollHeight;
+  try{
+    const asked=parseClass(q); if(asked&&DATA.classes.includes(asked)){sel.value=asked;save(asked)}
+    const r=await fetch(AI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({q,cls:sel.value})});
+    const j=await r.json();
+    if(j.answer){wait.textContent=j.answer}else{wait.innerHTML=answer(q)}
+  }catch(e){wait.innerHTML=answer(q)}
+  log.scrollTop=log.scrollHeight;
+}
 function save(c){try{localStorage.setItem("cls",c)}catch(e){}}
 function load(){try{return localStorage.getItem("cls")||""}catch(e){return ""}}
 
 ["오늘 급식 뭐야?","내일 점심 뭐야?","오늘 시간표","내일 시간표","지각 기준이 몇 시야?","몇 시에 끝나?"].forEach(t=>{
   const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=t;b.onclick=()=>ask(t);
   document.getElementById("chips").appendChild(b)});
-document.getElementById("f").addEventListener("submit",e=>{e.preventDefault();const i=document.getElementById("q");const v=i.value.trim();if(v){ask(v);i.value=""}});
+document.getElementById("f").addEventListener("submit",e=>{e.preventDefault();const i=document.getElementById("q");const v=i.value.trim();if(v){askAI(v);i.value=""}});
 sel.addEventListener("change",()=>save(sel.value));
 
 Promise.all([
@@ -168,7 +182,7 @@ Promise.all([
   DATA.classes.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=clsLabel(c);sel.appendChild(o)});
   const saved=load(); if(DATA.classes.includes(saved)) sel.value=saved;
   if(DATA.updated) document.getElementById("foot").textContent=`급식·시간표 출처: 나이스 교육정보 개방 포털 · ${DATA.updated} 업데이트 · 학생 개인 프로젝트예요`;
-  add("안녕하세요! 양일고 안내 챗봇이에요.\n급식, 시간표, 학교생활에 대해 물어보세요.","bot");
+  add("안녕하세요! 양일고 안내 챗봇이에요.\n급식, 시간표, 학교생활에 대해 물어보세요."+(AI_URL?"\n\n저는 AI라서 가끔 틀릴 수 있어요. 중요한 건 선생님께 확인해 주세요. 이름이나 전화번호 같은 개인정보는 입력하지 마세요.":""),"bot");
   const t=kstToday(); let d=t;
   for(let i=0;i<7&&!DATA.meals[ymd(d)];i++) d=addDays(d,1);
   const q=ymd(d)===ymd(t)?"오늘 급식 뭐야?":`${d.getUTCMonth()+1}월 ${d.getUTCDate()}일 급식`;
